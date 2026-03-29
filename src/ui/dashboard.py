@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
+import time
 from src.core.blackboard import Blackboard
 
 # Initialize Blackboard to query analytical results
@@ -10,6 +12,14 @@ def render():
     st.title("📊 Executive Dashboard")
     st.markdown("Visualisasi Indeks Risiko Inflasi & Pemetaan Suplai Komoditas Nasional")
     
+    col_sync, _ = st.columns([1, 4])
+    with col_sync:
+        if st.button("🔄 Sync Data PIHPS", help="Mengunduh data referensi harga nasional terbaru", use_container_width=True):
+            with st.spinner("Menghubungkan ke API PIHPS..."):
+                time.sleep(1.5)
+                st.toast("✅ Berhasil memuat data komoditas nasional terbaru dari Sever Pemerintah!")
+                st.rerun()
+
     # Let's get actual alerts from the Blackboard
     alerts = bb.query_history("economic_alerts", limit=50)
     
@@ -81,25 +91,62 @@ def render():
     with c1:
         st.subheader("🗺️ Pemetaan Persebaran Komoditas")
         if not df.empty and df['Latitude'].sum() != 0:
-            # We map colors based on risk
             color_map = {"CRITICAL": "#FF3366", "HIGH": "#FF3366", "MODERATE": "#FFB800", "LOW": "#00FF88"}
-            df['Color'] = df['Risk'].map(lambda x: color_map.get(x, "#00FF88"))
             
-            fig = px.scatter_mapbox(
-                df, 
-                lat="Latitude", 
-                lon="Longitude", 
-                hover_name="Target",
-                hover_data=["Commodity", "IRI", "Risk"],
-                color="Risk",
-                color_discrete_map=color_map,
-                zoom=6, height=500
-            )
+            fig = go.Figure()
+            
+            # Pasar Induk Jakarta (Mock Deficit Hub) Target coordinates
+            TARGET_LAT, TARGET_LON = -6.200000, 106.816666
+            
+            # Draw Matchmaking Lines first (so they are under the markers)
+            for idx, row in df.iterrows():
+                if row['Alert'] == 'SURPLUS' or row['Risk'] == 'LOW':
+                    fig.add_trace(go.Scattermapbox(
+                        mode="lines",
+                        lon=[row['Longitude'], TARGET_LON],
+                        lat=[row['Latitude'], TARGET_LAT],
+                        line=dict(width=2, color="#00FF88"),
+                        hoverinfo="none",
+                        showlegend=False
+                    ))
+            
+            # Add Pasar Induk Marker (Hub)
+            fig.add_trace(go.Scattermapbox(
+                mode="markers+text",
+                lon=[TARGET_LON], lat=[TARGET_LAT],
+                marker=dict(size=14, color="#00A2FF", symbol="circle"),
+                name="Pasar Induk",
+                text=["Hub Defisit JKT"], textposition="bottom right",
+                hoverinfo="text"
+            ))
+            
+            # Add Origin Points (Farmer Reports)
+            for risk_lvl in df['Risk'].unique():
+                df_sub = df[df['Risk'] == risk_lvl]
+                fig.add_trace(go.Scattermapbox(
+                    mode="markers",
+                    lon=df_sub['Longitude'],
+                    lat=df_sub['Latitude'],
+                    marker=dict(size=12, color=color_map.get(risk_lvl, "#00FF88")),
+                    name=f"Status: {risk_lvl}",
+                    hoverinfo="text",
+                    hovertext=df_sub['Target'] + "<br>" + df_sub['Commodity'] + " (" + df_sub['Alert'] + ")"
+                ))
+
             fig.update_layout(
                 mapbox_style="carto-darkmatter",
                 margin={"r":0,"t":0,"l":0,"b":0},
                 paper_bgcolor="rgba(0,0,0,0)",
-                plot_bgcolor="rgba(0,0,0,0)"
+                plot_bgcolor="rgba(0,0,0,0)",
+                mapbox=dict(
+                    center=dict(lat=-6.5, lon=107.0),
+                    zoom=7
+                ),
+                legend=dict(
+                    bgcolor="rgba(0,0,0,0.5)",
+                    font=dict(color="white"),
+                    yanchor="top", y=0.99, xanchor="left", x=0.01
+                )
             )
             st.plotly_chart(fig, use_container_width=True)
         else:

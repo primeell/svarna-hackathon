@@ -1,6 +1,8 @@
 import streamlit as st
 import tempfile
 import os
+import subprocess
+import shutil
 from src.core.pipeline import SVARNAPipeline
 from audiorecorder import audiorecorder
 
@@ -64,7 +66,23 @@ def run_analysis(pipeline, file_path):
     st.markdown("#### Proses Agen Berjalan...")
     with st.spinner("🤖 Menganalisa intonasi dan semantic ekonomi dari suara... (Mungkin butuh 20-40 detik)"):
         try:
-            results = pipeline.run(audio_file=file_path)
+            # === FFMPEG AUDIO NORMALIZER ===
+            processed_file = file_path
+            if file_path and shutil.which("ffmpeg"):
+                safe_output = os.path.join(tempfile.gettempdir(), f"clean_16k_{os.path.basename(file_path)}.wav")
+                try:
+                    subprocess.run(
+                        ["ffmpeg", "-y", "-i", file_path, "-ar", "16000", "-ac", "1", safe_output],
+                        check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                    )
+                    processed_file = safe_output
+                except subprocess.CalledProcessError:
+                    st.warning("⚠️ FFMPEG gagal memproses file ini. Melanjutkan dengan file asli.")
+            elif file_path:
+                st.warning("ℹ️ FFMPEG tidak terdeteksi di Windows Anda. Rekaman raw Web Audio mungkin ditolak oleh model AI. Disarankan install FFMPEG.")
+            # ===============================
+            
+            results = pipeline.run(audio_file=processed_file)
             st.success("✅ Analisis Tuntas!")
             
             # Visualization Result
