@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+env/
+.env
+
+# Database and Logs
+data/svarna_blackboard.db
+logs/
+*.log
+
+# Caches
+.pytest_cache/
+.coverage
+htmlcov/

@@ -1,0 +1,205 @@
+# ============================================================================
+# Project SVARNA — Agent Configuration
+# Sovereign Voice-to-Action Resource Network for Agriculture
+# Digdaya Hackathon 2026
+# ============================================================================
+
+system:
+  project_name: "SVARNA"
+  version: "0.1.0"
+  description: "National Economic Intelligence Engine for Food Price Stabilization"
+  privacy_mode: "sovereign"        # 100% local inference, no external API calls
+  log_level: "INFO"
+  database:
+    path: "data/svarna_blackboard.db"
+    encryption: true
+    backup_interval_minutes: 30
+
+# ---------------------------------------------------------------------------
+# Hardware Binding — Mobile / Edge Devices (Low Spec)
+# ---------------------------------------------------------------------------
+hardware:
+  edge_processor:
+    target: "General Mobile CPU / SoC"
+    runtime: "CTranslate2 / ONNX"
+    task: "audio_transcription & llm_inference"
+    max_threads: 4
+
+# ---------------------------------------------------------------------------
+# Agent Definitions
+# ---------------------------------------------------------------------------
+agents:
+
+  # =========================================================================
+  # Agent 1: AcousticSignalIngestor
+  # =========================================================================
+  acoustic_signal_ingestor:
+    persona: >
+      You are a specialized Audio Intelligence Agent. Your mission is to 
+      accurately transcribe farmer voice notes recorded in noisy field 
+      conditions. You handle Indonesian language and local dialects 
+      (Javanese, Sundanese, Balinese). You are optimized to run efficiently 
+      on low-spec mobile devices.
+    model:
+      engine: "faster-whisper"
+      backend: "ctranslate2"
+      model_size: "small"
+      language: "id"                # Indonesian
+      beam_size: 5
+      vad_filter: true
+      vad_parameters:
+        threshold: 0.5
+        min_speech_duration_ms: 250
+        max_speech_duration_s: 300
+        min_silence_duration_ms: 2000
+    tools:
+      - "audio_file_reader"
+      - "noise_filter"
+      - "vad_detector"
+      - "blackboard_writer"
+    input:
+      accepted_formats: [".wav", ".ogg", ".mp3", ".m4a", ".flac"]
+      max_duration_seconds: 600
+      sample_rate: 16000
+    output:
+      schema: "TranscriptionResult"
+      fields:
+        - "text"
+        - "segments"
+        - "language"
+        - "noise_confidence"
+        - "timestamp"
+    hardware_binding: "edge_processor"
+
+  # =========================================================================
+  # Agent 2: SemanticDataParser
+  # =========================================================================
+  semantic_data_parser:
+    persona: >
+      You are an Agricultural Economics Data Extraction Agent. You convert 
+      raw farmer transcriptions into structured economic data. You understand 
+      Indonesian commodity names, local measurement units (Quintal, Karung, 
+      Peti, Ton), and regional price terminology. You MUST output valid 
+      JSON matching the FarmerReport schema. If your extraction confidence 
+      is below 0.85 for any field, flag it for clarification.
+    model:
+      engine: "ollama"
+      model_name: "qwen2.5:0.5b"    # qwen 3.5 small to run well on phones
+      fallback_model: "gemma:2b"
+      temperature: 0.1              # Low temp for precise extraction
+      max_tokens: 1024
+      format: "json"
+    tools:
+      - "blackboard_reader"
+      - "blackboard_writer"
+      - "unit_converter"
+      - "geocoder"
+    extraction_targets:
+      - field: "commodity"
+        type: "string"
+        examples: ["beras", "cabai", "tomat", "bawang merah", "jagung"]
+      - field: "volume"
+        type: "float"
+      - field: "local_unit"
+        type: "string"
+        examples: ["kg", "kuintal", "ton", "karung", "peti", "ikat"]
+      - field: "asking_price"
+        type: "float"
+        currency: "IDR"
+      - field: "geo_location"
+        type: "object"
+        properties: ["latitude", "longitude", "village_name", "district"]
+    confidence_threshold: 0.85
+    clarification_loop:
+      enabled: true
+      max_retries: 2
+      strategy: "re-prompt with context"
+    hardware_binding: "edge_processor"
+
+  # =========================================================================
+  # Agent 3: MacroEconomicStrategist
+  # =========================================================================
+  macro_economic_strategist:
+    persona: >
+      You are a National Economic Intelligence Analyst specializing in 
+      agricultural commodity markets. You compare local farm-gate prices 
+      against the National PIHPS (Pusat Informasi Harga Pangan Strategis) 
+      reference data to detect price anomalies and inflation risks. You 
+      generate actionable surplus/deficit matchmaking alerts.
+    model:
+      engine: "analytical"          # Pure computation, no LLM needed
+      libraries: ["numpy", "pandas", "scipy"]
+    tools:
+      - "blackboard_reader"
+      - "blackboard_writer"
+      - "pihps_data_loader"
+      - "alert_dispatcher"
+    analytics:
+      price_deviation:
+        formula: "(P_local - P_national) / P_national"
+        alert_threshold: 0.15       # 15% deviation triggers alert
+      inflation_risk_index:
+        formula: "((P_local - P_national) / P_national) * regional_scarcity_factor"
+        risk_levels:
+          low: [0.0, 0.10]
+          moderate: [0.10, 0.25]
+          high: [0.25, 0.50]
+          critical: [0.50, 999.0]
+      matchmaking:
+        enabled: true
+        strategy: "redirect_surplus_to_deficit"
+        min_surplus_tons: 1.0
+    reference_data:
+      pihps_csv: "data/pihps_reference/sample_prices.csv"
+      update_frequency: "daily"
+    hardware_binding: "edge_processor"
+
+# ---------------------------------------------------------------------------
+# Blackboard Configuration (Inter-Agent Communication)
+# ---------------------------------------------------------------------------
+blackboard:
+  backend: "sqlite"
+  path: "data/svarna_blackboard.db"
+  tables:
+    - name: "transcriptions"
+      description: "Raw transcription outputs from AcousticSignalIngestor"
+    - name: "parsed_reports"
+      description: "Structured farmer reports from SemanticDataParser"
+    - name: "economic_alerts"
+      description: "IRI scores and matchmaking alerts from MacroEconomicStrategist"
+    - name: "audit_log"
+      description: "Full pipeline audit trail"
+  retention_days: 365
+
+# ---------------------------------------------------------------------------
+# Dashboard Configuration
+# ---------------------------------------------------------------------------
+dashboard:
+  framework: "streamlit"
+  theme:
+    background: "#0E1117"
+    accent_primary: "#00FF88"       # Neon Emerald (stability)
+    accent_danger: "#FF3366"        # Infrared Red (inflation alert)
+    accent_warning: "#FFB800"       # Amber (moderate risk)
+    text_primary: "#FAFAFA"
+    text_secondary: "#8B949E"
+    glassmorphism: true
+  components:
+    - "iri_trend_cards"
+    - "geo_map"
+    - "live_ingestor_feed"
+    - "surplus_deficit_table"
+
+# ---------------------------------------------------------------------------
+# Alert System
+# ---------------------------------------------------------------------------
+alerts:
+  channels:
+    - type: "dashboard"
+      enabled: true
+    - type: "whatsapp"
+      enabled: false                # Enable when WhatsApp API is configured
+      target_groups: ["gov_officials", "regional_coordinators"]
+    - type: "log_file"
+      enabled: true
+      path: "logs/alerts.log"

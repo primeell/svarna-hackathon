@@ -1,0 +1,43 @@
+# ============================================================================
+# Project SVARNA — Python Dependencies
+# ============================================================================
+
+# --- Core ---
+pydantic>=2.5.0
+pyyaml>=6.0
+python-dotenv>=1.0.0
+
+# --- Audio / Transcription (NPU) ---
+faster-whisper>=1.0.0
+openvino>=2024.0.0
+soundfile>=0.12.0
+webrtcvad>=2.0.10
+
+# --- LLM Inference (Local) ---
+ollama>=0.3.0
+httpx>=0.27.0
+
+# --- Analytics ---
+numpy>=1.26.0
+pandas>=2.2.0
+scipy>=1.12.0
+
+# --- Dashboard / Visualization ---
+streamlit>=1.32.0
+audio-recorder-streamlit
+folium>=0.16.0
+streamlit-folium>=0.18.0
+plotly>=5.20.0
+
+# --- Database ---
+# SQLite is built-in; no extra package needed
+# Optional encryption:
+# pysqlcipher3>=1.2.0
+
+# --- Testing ---
+pytest>=8.0.0
+pytest-asyncio>=0.23.0
+
+# --- Utilities ---
+loguru>=0.7.0
+rich>=13.7.0
